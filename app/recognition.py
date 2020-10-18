@@ -1,36 +1,33 @@
 from datetime import datetime, timedelta
 
-import cv2
 import face_recognition
 
-from app import db
+from app import db, LAST_SAVE
 
 
 class Recognizer:
     @staticmethod
     def recognize(frame):
         global LAST_SAVE
-        small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+        # BGR -> RGB
+        rgb_frame = frame[:, :, ::-1]
 
-        # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
-        rgb_small_frame = small_frame[:, :, ::-1]
-
-        face_locations = face_recognition.face_locations(rgb_small_frame)
-        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+        face_locations = face_recognition.face_locations(rgb_frame, model="cnn")
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations, model='cnn')
 
         face_labels = []
         names = []
         for face_location, face_encoding in zip(face_locations, face_encodings):
-            user_data, distance = db.lookup_known_face(face_encoding)
+            user_data = db.lookup_known_face(face_encoding)
             top, right, bottom, left = face_location
-            photo = small_frame[top:bottom, left:right]
+            photo = frame[top:bottom, left:right]
             if user_data is not None:
-                face_label = "{0}".format(user_data['name'])
-                names.append(user_data['name'])
+                face_label = "{0}".format(user_data['id'])
+                names.append(user_data['id'])
                 db.update_photo(user_data['id'], photo)
             else:
-                id = db.register_new_face(face_encoding, photo)
-                face_label = "New person: {0}".format(id)
+                id = db.register_new_person(face_encoding, photo)
+                face_label = "New: {0}".format(id)
                 names.append(id)
 
             face_labels.append(face_label)
